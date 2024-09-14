@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"src/outputs"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -43,8 +45,11 @@ type Server struct {
 
 // Creates a new UDP server
 func CreateNewServerUDP(port string, lifespan time.Duration) (*Server, error) {
+	if port == "" {
+		return nil, fmt.Errorf("No port specified")
+	}
 	if lifespan < 0 {
-		return nil, fmt.Errorf("Lifetime cannot be negative.")
+		return nil, fmt.Errorf("Lifetime cannot be negative")
 	}
 	addr, err := net.ResolveUDPAddr(udpNetworkType, fmt.Sprintf(":%s", port))
 	if err != nil {
@@ -54,7 +59,7 @@ func CreateNewServerUDP(port string, lifespan time.Duration) (*Server, error) {
 		address:        addr,
 		port:           port,
 		shutdownSignal: NewShutdownSignal(lifespan),
-		startTime:      time.Now(),
+		startTime:      time.Now().Local(),
 		lifespan:       lifespan,
 	}, nil
 }
@@ -98,7 +103,7 @@ func (s *Server) Run() error {
 					// Timeout expired, go back to listening (ignore timeout errors)
 					continue
 				}
-				PrintError("Error reading from client: %v", err)
+				outputs.PrintError("Error reading from client: %v", err)
 				continue
 			}
 
@@ -107,7 +112,7 @@ func (s *Server) Run() error {
 				continue
 			}
 
-			PrintStandardMessage(clientAddr.String(), message)
+			outputs.PrintStandardMessage(clientAddr.String(), message)
 			s.BroadcastMessage(message, conn, clientAddr)
 		}
 	}
