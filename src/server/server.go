@@ -23,20 +23,19 @@ func NewShutdownSignal(duration time.Duration) *ShutdownSignal {
 	}
 }
 
-// StartShutdownTimer starts the shutdown timer
-func (sig *ShutdownSignal) StartShutdownTimer() {
-	go func() {
-		time.Sleep(sig.Duration)
-		close(sig.ShutdownChannel)
-	}()
-}
-
 type Server struct {
 	address        *net.UDPAddr
 	port           string
 	shutdownSignal *ShutdownSignal
 	startTime      time.Time
 	lifespan       time.Duration
+}
+
+func (s *Server) startShutdownTimer() {
+	go func() {
+		time.Sleep(s.lifespan)
+		close(s.shutdownSignal.ShutdownChannel)
+	}()
 }
 
 // Creates a new UDP server
@@ -81,7 +80,7 @@ func (s *Server) Start() error {
 	if s.shutdownSignal.Duration == 0 {
 		log.Warnf("No shutdown timer set, server will run indefinitely.")
 	} else {
-		s.shutdownSignal.StartShutdownTimer()
+		s.startShutdownTimer()
 		log.Infof("Server listening on %s for %vm", s.Address(), s.lifespan.Minutes())
 	}
 
