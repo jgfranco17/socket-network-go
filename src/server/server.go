@@ -25,10 +25,6 @@ func NewShutdownSignal(duration time.Duration) *ShutdownSignal {
 
 // StartShutdownTimer starts the shutdown timer
 func (sig *ShutdownSignal) StartShutdownTimer() {
-	if sig.Duration == 0 {
-		log.Warnf("No shutdown timer set, server will run indefinitely.")
-		return
-	}
 	go func() {
 		time.Sleep(sig.Duration)
 		close(sig.ShutdownChannel)
@@ -36,7 +32,7 @@ func (sig *ShutdownSignal) StartShutdownTimer() {
 }
 
 type Server struct {
-	address        net.Addr
+	address        *net.UDPAddr
 	port           string
 	shutdownSignal *ShutdownSignal
 	startTime      time.Time
@@ -44,17 +40,18 @@ type Server struct {
 }
 
 // Creates a new UDP server
-func CreateNewServerUDP(port string, lifespan time.Duration) (*Server, error) {
+func CreateNewServerUDP(port string, lifespanMinutes int) (*Server, error) {
 	if port == "" {
 		return nil, fmt.Errorf("No port specified")
 	}
-	if lifespan < 0 {
+	if lifespanMinutes < 0 {
 		return nil, fmt.Errorf("Lifetime cannot be negative")
 	}
 	addr, err := net.ResolveUDPAddr(udpNetworkType, fmt.Sprintf(":%s", port))
 	if err != nil {
 		return nil, fmt.Errorf("Error resolving address: %w", err)
 	}
+	lifespan := time.Duration(lifespanMinutes) * time.Minute
 	return &Server{
 		address:        addr,
 		port:           port,
@@ -73,21 +70,20 @@ func (s *Server) CheckShutdown() chan struct{} {
 }
 
 // Start initializes the server and starts listening for UDP messages
-func (s *Server) Run() error {
-	addr, err := net.ResolveUDPAddr(udpNetworkType, fmt.Sprintf(":%s", s.port))
-	if err != nil {
-		return fmt.Errorf("Error resolving address: %w", err)
-	}
-
-	conn, err := net.ListenUDP(udpNetworkType, addr)
+func (s *Server) Start() error {
+	conn, err := net.ListenUDP(udpNetworkType, s.address)
 	if err != nil {
 		return fmt.Errorf("Error starting server: %w", err)
 	}
 	defer conn.Close()
 
-	s.shutdownSignal.StartShutdownTimer()
 	buffer := make([]byte, maxByteSize)
-	log.Infof("Server listening on %s for %vs", s.Address(), s.lifespan.Seconds())
+	if s.shutdownSignal.Duration == 0 {
+		log.Warnf("No shutdown timer set, server will run indefinitely.")
+	} else {
+		s.shutdownSignal.StartShutdownTimer()
+		log.Infof("Server listening on %s for %vm", s.Address(), s.lifespan.Minutes())
+	}
 
 	for {
 		select {
@@ -111,19 +107,18 @@ func (s *Server) Run() error {
 			if message == "" {
 				continue
 			}
-
-			outputs.PrintStandardMessage(clientAddr.String(), message)
 			s.BroadcastMessage(message, conn, clientAddr)
 		}
 	}
 }
 
 // broadcastMessage sends the message back to the client who sent it
-func (s *Server) BroadcastMessage(message string, conn *net.UDPConn, senderAddr *net.UDPAddr) {
-	response := fmt.Sprintf("[%s]: %s", senderAddr.String(), message)
+func (s *Server) BroadcastMessage(message string, conn *net.UDPConn, addr *net.UDPAddr) {
+	outputs.PrintStandardMessage(addr.String(), message)
+	response := fmt.Sprintf("[%s]: %s", addr.String(), message)
 
 	// Send the message back to the client who sent it
-	_, err := conn.WriteToUDP([]byte(response), senderAddr)
+	_, err := conn.WriteToUDP([]byte(response), addr)
 	if err != nil {
 		log.Infof("Error sending response message: %v", err)
 	}

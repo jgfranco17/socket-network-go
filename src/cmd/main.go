@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"time"
 
 	"src/logging"
 	"src/server"
@@ -21,12 +20,11 @@ func init() {
 
 func main() {
 	flag.Parse()
-	duration := time.Duration(*lifespan) * time.Second
-	server, err := server.CreateNewServerUDP(*port, duration)
+	server, err := server.CreateNewServerUDP(*port, *lifespan)
 	if err != nil {
 		log.Fatalf("Server failed to initialize: %v", err)
 	}
-	err = server.Run()
+	err = server.Start()
 	if err != nil {
 		log.Fatalf("Server error during run: %v", err)
 	}
