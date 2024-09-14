@@ -23,6 +23,10 @@ func NewShutdownSignal(duration time.Duration) *ShutdownSignal {
 
 // StartShutdownTimer starts the shutdown timer
 func (sig *ShutdownSignal) StartShutdownTimer() {
+	if sig.Duration == 0 {
+		log.Warnf("No shutdown timer set, server will run indefinitely.")
+		return
+	}
 	go func() {
 		time.Sleep(sig.Duration)
 		close(sig.ShutdownChannel)
@@ -30,24 +34,33 @@ func (sig *ShutdownSignal) StartShutdownTimer() {
 }
 
 type Server struct {
+	address        net.Addr
 	port           string
 	shutdownSignal *ShutdownSignal
 	startTime      time.Time
 	lifespan       time.Duration
 }
 
-// NewServer creates a new UDP server
-func NewServer(port string, lifespan time.Duration) *Server {
+// Creates a new UDP server
+func CreateNewServerUDP(port string, lifespan time.Duration) (*Server, error) {
+	if lifespan < 0 {
+		return nil, fmt.Errorf("Lifetime cannot be negative.")
+	}
+	addr, err := net.ResolveUDPAddr(udpNetworkType, fmt.Sprintf(":%s", port))
+	if err != nil {
+		return nil, fmt.Errorf("Error resolving address: %w", err)
+	}
 	return &Server{
+		address:        addr,
 		port:           port,
 		shutdownSignal: NewShutdownSignal(lifespan),
 		startTime:      time.Now(),
 		lifespan:       lifespan,
-	}
+	}, nil
 }
 
 func (s *Server) Address() string {
-	return fmt.Sprintf("localhost:%s", s.port)
+	return s.address.String()
 }
 
 func (s *Server) CheckShutdown() chan struct{} {
@@ -56,12 +69,12 @@ func (s *Server) CheckShutdown() chan struct{} {
 
 // Start initializes the server and starts listening for UDP messages
 func (s *Server) Run() error {
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%s", s.port))
+	addr, err := net.ResolveUDPAddr(udpNetworkType, fmt.Sprintf(":%s", s.port))
 	if err != nil {
 		return fmt.Errorf("Error resolving address: %w", err)
 	}
 
-	conn, err := net.ListenUDP("udp", addr)
+	conn, err := net.ListenUDP(udpNetworkType, addr)
 	if err != nil {
 		return fmt.Errorf("Error starting server: %w", err)
 	}
@@ -78,7 +91,7 @@ func (s *Server) Run() error {
 			return nil
 		default:
 			conn.SetReadDeadline(time.Now().Add(1 * time.Second))
-			n, clientAddr, err := conn.ReadFromUDP(buffer)
+			idx, clientAddr, err := conn.ReadFromUDP(buffer)
 			if err != nil {
 				netErr, ok := err.(net.Error)
 				if ok && netErr.Timeout() {
@@ -89,7 +102,7 @@ func (s *Server) Run() error {
 				continue
 			}
 
-			message := strings.TrimSpace(string(buffer[:n]))
+			message := strings.TrimSpace(string(buffer[:idx]))
 			if message == "" {
 				continue
 			}
@@ -105,7 +118,8 @@ func (s *Server) BroadcastMessage(message string, conn *net.UDPConn, senderAddr 
 	response := fmt.Sprintf("[%s]: %s", senderAddr.String(), message)
 
 	// Send the message back to the client who sent it
-	if _, err := conn.WriteToUDP([]byte(response), senderAddr); err != nil {
-		log.Infof("Error sending message: %v", err)
+	_, err := conn.WriteToUDP([]byte(response), senderAddr)
+	if err != nil {
+		log.Infof("Error sending response message: %v", err)
 	}
 }

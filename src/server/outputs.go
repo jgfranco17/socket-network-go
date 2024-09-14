@@ -8,7 +8,7 @@ import (
 
 func PrintStandardMessage(source string, message string) {
 	green := color.New(color.FgGreen).SprintFunc()
-	fmt.Printf("[Received from %s] %s\n", green(source), message)
+	fmt.Printf("[%s] %s\n", green(source), message)
 }
 
 func PrintWarn(text string, args ...any) {

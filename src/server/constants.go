@@ -1,6 +1,7 @@
 package server
 
 const (
-	tcpEndMarker string = "---END---"
-	maxByteSize  int32  = 2048
+	udpNetworkType string = "udp"
+	tcpEndMarker   string = "---END---"
+	maxByteSize    int32  = 2048
 )

@@ -12,7 +12,7 @@ import (
 
 var (
 	port     *string = flag.String("port", "8080", "Port to listen on")
-	lifespan *int    = flag.Int("lifespan", 60, "Port to listen on")
+	lifespan *int    = flag.Int("lifespan", 0, "Port to listen on")
 )
 
 func init() {
@@ -22,9 +22,12 @@ func init() {
 func main() {
 	flag.Parse()
 	duration := time.Duration(*lifespan) * time.Second
-	server := server.NewServer(*port, duration)
-	err := server.Run()
+	server, err := server.CreateNewServerUDP(*port, duration)
 	if err != nil {
-		log.Fatalf("Server failed unexpectedly: %v", err)
+		log.Fatalf("Server failed to initialize: %v", err)
+	}
+	err = server.Run()
+	if err != nil {
+		log.Fatalf("Server error during run: %v", err)
 	}
 }
