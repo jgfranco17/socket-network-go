@@ -1,0 +1,15 @@
+---
+version: "3"
+services:
+  socket-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 8080:8080
+    networks:
+      - api-network
+
+networks:
+  api-network:
+    driver: bridge

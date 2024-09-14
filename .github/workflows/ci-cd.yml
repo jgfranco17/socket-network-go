@@ -1,0 +1,52 @@
+---
+name: CI-CD Pipeline
+
+# Controls when the workflow will run
+"on":
+  # Triggers the workflow on push or pull request events but only for the main branch
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run setup
+        uses: ./.github/actions/setup-go-workspace
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install pre-commit
+        run: |
+          pip install --upgrade pip
+          pip install pre-commit==3.8.0
+
+      - name: Install pre-commit
+        run: |
+          pre-commit run --all-files --verbose
+
+  test:
+    runs-on: ubuntu-latest
+    needs: pre-commit
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run setup
+        uses: ./.github/actions/setup-go-workspace
+
+      - name: Run tests
+        run: |
+          just test

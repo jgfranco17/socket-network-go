@@ -1,0 +1,7 @@
+# Project ignores
+*.log
+
+/site
+
+.vscode/
+go.work.sum
